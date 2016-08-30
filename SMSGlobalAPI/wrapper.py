@@ -1,4 +1,4 @@
-import httplib, urllib
+import urlparse, httplib
 import hmac
 import hashlib
 import base64
@@ -18,12 +18,16 @@ class Wrapper (object):
     TYPE_CSV = "text/csv"
     TYPE_MSGPACK = "application/x-msgpack"
 
-    def __init__(self, key, secret, protocol = "http", host = "api.smsglobal.com", port = 80, apiVersion = "v1", extraData = "", debug = False, type = TYPE_CSV):
+    def __init__(self, key, secret, protocol = "https", host = "api.smsglobal.com", port = None, apiVersion = "v1", extraData = "", debug = False, type = TYPE_JSON):
         self.key = key.strip()
         self.secret = secret.strip()
         self.protocol = protocol.lower()
         self.host = host.strip()
+        if self.protocol not in ['http', 'https']:
+            raise Exception("Invalid protocol specified.")
         self.port = port
+        if port is None:
+            self.port = {'http': 80, 'https': 443}[protocol]
         self.apiVersion = apiVersion
         self.extraData = extraData
         self.debug = debug
@@ -32,13 +36,13 @@ class Wrapper (object):
     def get(self, action, id = None):
         return self.connect("GET", action, id)
 
-    def post(self, action, id = None):
-        return self.connect("POST", action, id)
+    def post(self, action, id = None, data = None):
+        return self.connect("POST", action, id, data)
 
     def delete(self, action, id = None):
         return self.connect("DELETE", action, id)
 
-    def connect(self, method, action, id = None):
+    def connect(self, method, action, id = None, data = None):
         action = "/%s/%s/" % (self.apiVersion, action)
         if (id != None) and (id != ''):
             action = "/%s/%s/id/%s/" % (self.apiVersion, action, id)
@@ -47,23 +51,28 @@ class Wrapper (object):
         if method not in ["GET", "POST", "DELETE", "OPTIONS", "PATCH"]:
             method = "GET"
 
-        headers = {"Authorization" : self.get_authorisation_http_header(method, action), "User-Agent" : "SMS Python Client", "Accept": self.type}
+        headers = {"Authorization" : self.get_authorisation_http_header(method, action),
+                   "User-Agent" : "SMS Python Client",
+                   "Accept": self.type,
+                   "Content-Type": self.type}
 
         # HTTP transportation
-        http = httplib.HTTPConnection(self.host, self.port)
+        if self.protocol == 'http':
+            http = httplib.HTTPConnection(self.host, self.port)
+        elif self.protocol == 'https':
+            http = httplib.HTTPSConnection(self.host, self.port)
 
         if self.debug:
             http.set_debuglevel(1)
 
-
         # do it!
-        http.request(method, action, None, headers)
+        http.request(method, action, data, headers)
         response = http.getresponse()
 
-        if response.status == 200:
-            return response.read()
+        if response.status in [200, 201]:
+            return response
         else:
-            raise Exception("There's problem accessing API")
+            raise Exception("There's problem accessing API (HTTP %d)" % (response.status))
 
 
     def get_authorisation_http_header(self, method, action):
