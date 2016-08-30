@@ -70,9 +70,21 @@ class Wrapper (object):
         response = http.getresponse()
 
         if response.status in [200, 201]:
-            return response
+            return response.read()
+        elif response.status in [400]: #Your request contained invalid or missing data
+            raise Exception("Bad Request (%d): %s" % (response.status, response.read()))
+        elif response.status in [401]: #Authentication failed or the Authenticate header was not provided
+            raise Exception("Unauthorized (%d): %s" % (response.status, response.read()))
+        elif response.status in [404]: #The URI does not match any of the recognised resources, or, if you are asking for a specific resource with an ID, that resource does not exist
+            raise Exception("Not Found (%d): %s" % (response.status, response.read()))
+        elif response.status in [405]: #The HTTP request method you are trying to use is not allowed. Make an OPTIONS request to see the allowed methods
+            raise Exception("Method Not Allowed (%d): %s" % (response.status, response.read()))
+        elif response.status in [406]: #The Accept content type you are asking for is not supported by the REST API
+            raise Exception("Not Acceptable (%d): %s" % (response.status, response.read()))
+        elif response.status in [415]: #The Content-Type header is not supported by the REST API
+            raise Exception("Unsupported Media Type (%d): %s" % (response.status, response.read()))
         else:
-            raise Exception("There's problem accessing API (HTTP %d)" % (response.status))
+            raise Exception("There's problem accessing API (HTTP %d): %s" % (response.status, response.read()))
 
 
     def get_authorisation_http_header(self, method, action):
